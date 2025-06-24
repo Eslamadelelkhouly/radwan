@@ -49,16 +49,20 @@ class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _controller = TextEditingController();
   bool _isFirstMessageSent = false;
   final ImagePicker _picker = ImagePicker();
-  late String sendmessage;
   bool _isLoading = false;
   FocusNode _focusNode = FocusNode();
+
+  /// وقت بداية الجلسة (سنستخدمه كمعرّف للجلسة)
+  late DateTime sessionStart;
 
   @override
   void initState() {
     super.initState();
+    sessionStart = DateTime.now();
     loadMessages();
   }
 
+  /// تحفظ الرسائل الحالية للجلسة في مفتاح 'chatMessages'
   Future<void> saveMessages(List<ChatMessage> messages) async {
     final prefs = await SharedPreferences.getInstance();
     final List<String> jsonMessages =
@@ -66,13 +70,7 @@ class _ChatScreenState extends State<ChatScreen> {
     await prefs.setStringList('chatMessages', jsonMessages);
   }
 
-  Future<void> addToChatHistory(ChatMessage message) async {
-    final prefs = await SharedPreferences.getInstance();
-    final List<String> history = prefs.getStringList('chatHistory') ?? [];
-    history.add(jsonEncode(message.toJson()));
-    await prefs.setStringList('chatHistory', history);
-  }
-
+  /// تحميل الرسائل الحالية للجلسة (في حالة استئناف محادثة غير منتهية)
   Future<void> loadMessages() async {
     final prefs = await SharedPreferences.getInstance();
     final List<String>? jsonMessages = prefs.getStringList('chatMessages');
@@ -87,36 +85,55 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  Future<void> clearChatMessages() async {
+  /// حذف الرسائل الحالية من التخزين المؤقت
+  Future<void> clearCurrentMessages() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('chatMessages');
   }
 
+  /// عند انتهاء الجلسة، نحفظ جلسة المحادثة في مفتاح 'chatHistory'
+  Future<void> addConversationToHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    // نحصل على السجل الحالي للجلسات (قائمة من السلاسل JSON)
+    final List<String> history = prefs.getStringList('chatHistory') ?? [];
+
+    // ننشئ كائن للجلسة يحوي تاريخ البداية والرسائل (كقائمة JSON)
+    final Map<String, dynamic> conversation = {
+      'sessionStart': sessionStart.toIso8601String(),
+      'messages': messages.map((msg) => msg.toJson()).toList(),
+    };
+
+    history.add(jsonEncode(conversation));
+    await prefs.setStringList('chatHistory', history);
+  }
+
+  /// عند الضغط على زر الرجوع أو الخروج من شاشة المحادثة
   Future<bool> showExitConfirmation() async {
     return await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('الخروج من المحادثة'),
-            content: const Text('هل تريد حفظ المحادثة قبل الخروج؟'),
+            content: const Text(
+                'هل تريد حفظ المحادثة الحالية في سجل الدردشة؟'),
             actions: [
               TextButton(
-                child: const Text('نعم، احتفظ بها'),
+                child: const Text('نعم، احفظ'),
                 onPressed: () => Navigator.of(context).pop(true),
               ),
               TextButton(
-                child: const Text('لا، امسحها'),
+                child: const Text('لا، لا تحفظ'),
                 onPressed: () => Navigator.of(context).pop(false),
               ),
             ],
           ),
         ) ??
-        true;
+        false;
   }
 
   void _sendMessage() async {
-    String message = _controller.text.trim();
-    if (message.isNotEmpty) {
-      final userMessage = ChatMessage(text: message, isMe: true);
+    String messageText = _controller.text.trim();
+    if (messageText.isNotEmpty) {
+      final userMessage = ChatMessage(text: messageText, isMe: true);
       setState(() {
         messages.add(userMessage);
         _controller.clear();
@@ -124,8 +141,7 @@ class _ChatScreenState extends State<ChatScreen> {
         _isLoading = true;
       });
       await saveMessages(messages);
-      await addToChatHistory(userMessage);
-      context.read<ChatBotCubit>().getChatResponse(message: message);
+      context.read<ChatBotCubit>().getChatResponse(message: messageText);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a message')),
@@ -144,7 +160,6 @@ class _ChatScreenState extends State<ChatScreen> {
       _isFirstMessageSent = true;
     });
     await saveMessages(messages);
-    await addToChatHistory(imageMessage);
   }
 
   Future<void> _pickImage() async {
@@ -160,8 +175,9 @@ class _ChatScreenState extends State<ChatScreen> {
       messages.clear();
       _isFirstMessageSent = false;
       _isLoading = false;
+      sessionStart = DateTime.now(); // بدء جلسة جديدة
     });
-    await clearChatMessages();
+    await clearCurrentMessages();
   }
 
   @override
@@ -175,8 +191,13 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     return WillPopScope(
       onWillPop: () async {
-        bool keep = await showExitConfirmation();
-        if (!keep) await clearChatMessages();
+        bool saveConversation = await showExitConfirmation();
+        if (saveConversation && messages.isNotEmpty) {
+          await addConversationToHistory();
+        } else {
+          // لا نحفظ الجلسة، ونقوم بمسح الرسائل الحالية
+          await clearCurrentMessages();
+        }
         return true;
       },
       child: BlocConsumer<ChatBotCubit, ChatBotState>(
@@ -193,7 +214,6 @@ class _ChatScreenState extends State<ChatScreen> {
               _isLoading = false;
             });
             await saveMessages(messages);
-            await addToChatHistory(botMessage);
           } else if (state is ChatbotError) {
             ScaffoldMessenger.of(context)
                 .showSnackBar(SnackBar(content: Text(state.error)));
@@ -220,8 +240,12 @@ class _ChatScreenState extends State<ChatScreen> {
               leading: IconButton(
                 icon: const Icon(Icons.arrow_back),
                 onPressed: () async {
-                  bool keep = await showExitConfirmation();
-                  if (!keep) await clearChatMessages();
+                  bool saveConversation = await showExitConfirmation();
+                  if (saveConversation && messages.isNotEmpty) {
+                    await addConversationToHistory();
+                  } else {
+                    await clearCurrentMessages();
+                  }
                   Navigator.of(context).pop();
                 },
               ),
@@ -293,12 +317,10 @@ class _ChatScreenState extends State<ChatScreen> {
                           ),
                         );
                       } else {
-                        final msg =
-                            messages[_isFirstMessageSent ? index : index - 1];
+                        final msg = messages[_isFirstMessageSent ? index : index - 1];
                         return Align(
-                          alignment: msg.isMe
-                              ? Alignment.centerRight
-                              : Alignment.centerLeft,
+                          alignment:
+                              msg.isMe ? Alignment.centerRight : Alignment.centerLeft,
                           child: Container(
                             margin: const EdgeInsets.symmetric(vertical: 4.0),
                             padding: const EdgeInsets.all(12.0),
@@ -324,9 +346,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                   Text(
                                     msg.text,
                                     style: TextStyle(
-                                        color: msg.isMe
-                                            ? Colors.white
-                                            : Colors.black),
+                                        color: msg.isMe ? Colors.white : Colors.black),
                                   ),
                               ],
                             ),

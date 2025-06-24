@@ -1,7 +1,6 @@
 import 'dart:convert';
-import 'dart:io';
-
 import 'package:flutter/material.dart';
+import 'package:diagnosify_app/widgets/chat_session_detail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ChatHistoryButtonPage extends StatefulWidget {
@@ -10,64 +9,78 @@ class ChatHistoryButtonPage extends StatefulWidget {
 }
 
 class _ChatHistoryButtonPageState extends State<ChatHistoryButtonPage> {
-  List<Map<String, dynamic>> history = [];
+  List<Map<String, dynamic>> conversations = [];
 
   @override
   void initState() {
     super.initState();
-    loadChatHistory();
+    loadConversations();
   }
 
-  Future<void> loadChatHistory() async {
+  Future<void> loadConversations() async {
     final prefs = await SharedPreferences.getInstance();
     final List<String> jsonHistory = prefs.getStringList('chatHistory') ?? [];
     setState(() {
-      history = jsonHistory
+      conversations = jsonHistory
           .map((e) => json.decode(e) as Map<String, dynamic>)
           .toList();
     });
   }
 
+  String formatDate(String isoDate) {
+    try {
+      DateTime date = DateTime.parse(isoDate);
+      return "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}";
+    } catch (e) {
+      return "تاريخ غير معروف";
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Chat History")),
-      body: history.isEmpty
-          ? Center(child: Text('No chat history yet.'))
+      appBar: AppBar(title: const Text("Chat History")),
+      body: conversations.isEmpty
+          ? const Center(child: Text('لا يوجد محادثات محفوظة.'))
           : ListView.builder(
-              itemCount: history.length,
+              itemCount: conversations.length,
               itemBuilder: (context, index) {
-                final item = history[index];
-                final bool isMe = item['isMe'];
-                return Align(
-                  alignment:
-                      isMe ? Alignment.centerRight : Alignment.centerLeft,
+                final conversation = conversations[index];
+                final sessionStart = conversation['sessionStart'] ?? 'unknown';
+                final messages =
+                    (conversation['messages'] ?? []) as List<dynamic>;
+
+                return GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ChatSessionDetailPage(
+                          sessionData: conversation,
+                        ),
+                      ),
+                    );
+                  },
                   child: Container(
-                    margin: EdgeInsets.all(8),
-                    padding: EdgeInsets.all(12),
+                    margin: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: isMe ? Colors.blue : Colors.grey[300],
+                      color: Colors.grey[300],
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Column(
-                      crossAxisAlignment: isMe
-                          ? CrossAxisAlignment.end
-                          : CrossAxisAlignment.start,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        if (item['imagePath'] != null)
-                          Image.file(
-                            File(item['imagePath']),
-                            width: 150,
-                            height: 150,
-                            fit: BoxFit.cover,
+                        Flexible(
+                          child: Text(
+                            "جلسة: ${formatDate(sessionStart)}",
+                            style: const TextStyle(fontSize: 16),
                           ),
-                        if (item['text'] != null && item['text'] != "")
-                          Text(
-                            item['text'],
-                            style: TextStyle(
-                              color: isMe ? Colors.white : Colors.black,
-                            ),
-                          ),
+                        ),
+                        Text(
+                          "${messages.length} رسالة",
+                          style: const TextStyle(fontSize: 14),
+                        ),
                       ],
                     ),
                   ),
