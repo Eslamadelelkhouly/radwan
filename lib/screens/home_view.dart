@@ -1,10 +1,26 @@
+import 'dart:developer';
+
+import 'package:diagnosify_app/core/services/sigletonesharedperference.dart';
 import 'package:diagnosify_app/features/chat_services/manager/cubit/chat_bot_cubit.dart';
 import 'package:diagnosify_app/screens/Chat_Screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-class HomeView extends StatelessWidget {
+class HomeView extends StatefulWidget {
   const HomeView({super.key});
+
+  @override
+  State<HomeView> createState() => _HomeViewState();
+}
+
+class _HomeViewState extends State<HomeView> {
+  @override
+  void initState() {
+    // TODO: implement initState
+    super.initState();
+    String token = SharedPreferenceSingleton.getString('token');
+    log(token);
+  }
 
   @override
   Widget build(BuildContext context) {

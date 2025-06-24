@@ -110,7 +110,10 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                                builder: (context) => RegistrationScreen2()),
+                              builder: (context) => RegistrationScreen2(
+                                questions: questions,
+                              ),
+                            ),
                           );
                           setState(() {
                             _isFirstTimeRegistration = false;

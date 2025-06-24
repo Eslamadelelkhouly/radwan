@@ -1,31 +1,6 @@
-// import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'dart:io';
 
-// class ChatHistoryScreen extends StatelessWidget {
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       appBar: AppBar(
-//         title: Text('Chat History'),
-//       ),
-//       body: ListView(
-//         children: [
-//           ListTile(
-//             title: Text('Chat 1'),
-//             subtitle: Text('Last message: Hello!'),
-//           ),
-//           ListTile(
-//             title: Text('Chat 2'),
-//             subtitle: Text('Last message: How are you?'),
-//           ),
-//           ListTile(
-//             title: Text('Chat 3'),
-//             subtitle: Text('Last message: See you later!'),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-// }
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -35,51 +10,70 @@ class ChatHistoryButtonPage extends StatefulWidget {
 }
 
 class _ChatHistoryButtonPageState extends State<ChatHistoryButtonPage> {
-  int clickCount = 0;
+  List<Map<String, dynamic>> history = [];
 
   @override
   void initState() {
     super.initState();
-    loadClickData();
+    loadChatHistory();
   }
 
-  Future<void> loadClickData() async {
+  Future<void> loadChatHistory() async {
     final prefs = await SharedPreferences.getInstance();
+    final List<String> jsonHistory = prefs.getStringList('chatHistory') ?? [];
     setState(() {
-      clickCount = prefs.getInt('chatHistoryClicks') ?? 0;
+      history = jsonHistory
+          .map((e) => json.decode(e) as Map<String, dynamic>)
+          .toList();
     });
-  }
-
-  Future<void> recordClick() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      clickCount++;
-    });
-    await prefs.setInt('chatHistoryClicks', clickCount);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Chat history clicked $clickCount times')),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xFFFAF6FD),
-      appBar: AppBar(title: Text("Chat History" )),
-      body: Center(
-        child: TextButton.icon(
-          style: TextButton.styleFrom(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            backgroundColor: Colors.transparent,
-          ),
-          onPressed: recordClick,
-          icon: Icon(Icons.history, color: Colors.black),
-          label: Text(
-            "Chat history",
-            style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-          ),
-        ),
-      ),
+      appBar: AppBar(title: Text("Chat History")),
+      body: history.isEmpty
+          ? Center(child: Text('No chat history yet.'))
+          : ListView.builder(
+              itemCount: history.length,
+              itemBuilder: (context, index) {
+                final item = history[index];
+                final bool isMe = item['isMe'];
+                return Align(
+                  alignment:
+                      isMe ? Alignment.centerRight : Alignment.centerLeft,
+                  child: Container(
+                    margin: EdgeInsets.all(8),
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isMe ? Colors.blue : Colors.grey[300],
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: isMe
+                          ? CrossAxisAlignment.end
+                          : CrossAxisAlignment.start,
+                      children: [
+                        if (item['imagePath'] != null)
+                          Image.file(
+                            File(item['imagePath']),
+                            width: 150,
+                            height: 150,
+                            fit: BoxFit.cover,
+                          ),
+                        if (item['text'] != null && item['text'] != "")
+                          Text(
+                            item['text'],
+                            style: TextStyle(
+                              color: isMe ? Colors.white : Colors.black,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
     );
   }
 }

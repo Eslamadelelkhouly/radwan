@@ -1,6 +1,7 @@
 import 'dart:io';
+import 'package:diagnosify_app/core/manager/cubit/get_profile_cubit.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -16,36 +17,12 @@ class _ProfilePageState extends State<ProfilePage> {
   final diseaseController = TextEditingController();
 
   File? _imageFile;
+  String? networkImageUrl;
 
   @override
   void initState() {
     super.initState();
-    loadData();
-  }
-
-  Future<void> loadData() async {
-    final prefs = await SharedPreferences.getInstance();
-    nameController.text = prefs.getString('name') ?? '';
-    phoneController.text = prefs.getString('phone') ?? '';
-    idController.text = prefs.getString('id') ?? '';
-    medicineController.text = prefs.getString('medicine') ?? '';
-    diseaseController.text = prefs.getString('disease') ?? '';
-    final imagePath = prefs.getString('imagePath');
-    if (imagePath != null) {
-      setState(() => _imageFile = File(imagePath));
-    }
-  }
-
-  Future<void> saveData() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('name', nameController.text);
-    await prefs.setString('phone', phoneController.text);
-    await prefs.setString('id', idController.text);
-    await prefs.setString('medicine', medicineController.text);
-    await prefs.setString('disease', diseaseController.text);
-    if (_imageFile != null) {
-      await prefs.setString('imagePath', _imageFile!.path);
-    }
+    context.read<GetProfileCubit>().getProfile();
   }
 
   Future<void> pickImage() async {
@@ -62,63 +39,97 @@ class _ProfilePageState extends State<ProfilePage> {
       appBar: AppBar(
         backgroundColor: Color(0xff048497),
         leading: BackButton(color: Colors.white),
-        title: Text("profile", style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Text("Profile", style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            Stack(
-              alignment: Alignment.topCenter,
-              children: [
-                Container(
-                  height: 100,
-                  decoration: BoxDecoration(
-                    color: Color(0xff048497),
-                    borderRadius:
-                        BorderRadius.vertical(bottom: Radius.circular(30)),
+      body: BlocConsumer<GetProfileCubit, GetProfileState>(
+        listener: (context, state) {
+          if (state is GetProfileError) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content:
+                    Text("Failed to load profile: ${state.error['message']}"),
+                backgroundColor: Colors.redAccent,
+              ),
+            );
+          }
+          if (state is GetProfileSuccess) {
+            final data = state.response;
+            nameController.text = data['name'] ?? '';
+            phoneController.text = data['phone'] ?? '';
+            idController.text = data['national_id'] ?? '';
+            medicineController.text = data['medications'] ?? '';
+            diseaseController.text = data['diseases'] ?? '';
+            networkImageUrl = data['image'];
+          }
+        },
+        builder: (context, state) {
+          return state is GetProfileLoading
+              ? Center(child: CircularProgressIndicator())
+              : SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      Stack(
+                        alignment: Alignment.topCenter,
+                        children: [
+                          Container(
+                            height: 100,
+                            decoration: BoxDecoration(
+                              color: Color(0xff048497),
+                              borderRadius: BorderRadius.vertical(
+                                  bottom: Radius.circular(30)),
+                            ),
+                          ),
+                          Positioned(
+                            top: 0,
+                            child: GestureDetector(
+                              onTap: pickImage,
+                              child: CircleAvatar(
+                                radius: 45,
+                                backgroundImage: _imageFile != null
+                                    ? FileImage(_imageFile!)
+                                    : networkImageUrl != null
+                                        ? NetworkImage(networkImageUrl!)
+                                        : AssetImage("assets/avatar.png")
+                                            as ImageProvider,
+                                child: _imageFile == null &&
+                                        networkImageUrl == null
+                                    ? Icon(Icons.add_a_photo,
+                                        color: Colors.white70)
+                                    : null,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 20),
+                      buildCard("Name", nameController),
+                      buildCard("Phone Number", phoneController,
+                          keyboard: TextInputType.phone),
+                      buildCard("National Number", idController),
+                      buildCard("Medicine", medicineController,
+                          hint: "Separate by lines"),
+                      buildCard("Diseases", diseaseController,
+                          hint: "Separate by lines"),
+                      SizedBox(height: 20),
+                      ElevatedButton(
+                        onPressed: () {
+                          // TODO: Send updated data to backend here
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                              content: Text(
+                                  'Profile saved (not yet sent to backend)')));
+                        },
+                        child: Text("Save",
+                            style:
+                                TextStyle(color: Colors.white, fontSize: 16)),
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: Color(0xff048497)),
+                      ),
+                      SizedBox(height: 40),
+                    ],
                   ),
-                ),
-                Positioned(
-                  top: 0,
-                  child: GestureDetector(
-                    onTap: pickImage,
-                    child: CircleAvatar(
-                      radius: 45,
-                      backgroundImage: _imageFile != null
-                          ? FileImage(_imageFile!)
-                          : AssetImage("assets/avatar.png") as ImageProvider,
-                      child: _imageFile == null
-                          ? Icon(Icons.add_a_photo, color: Colors.white70)
-                          : null,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 20),
-            buildCard("Name", nameController),
-            buildCard("Phone Number", phoneController,
-                keyboard: TextInputType.phone),
-            buildCard("National Number", idController),
-            buildCard("Medicine", medicineController,
-                hint: "Separate by lines"),
-            buildCard("Diseases", diseaseController, hint: "Separate by lines"),
-            SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () async {
-                await saveData();
-                ScaffoldMessenger.of(context)
-                    .showSnackBar(SnackBar(content: Text('Profile saved')));
-              },
-              child: Text("Save",
-                  style: TextStyle(color: Colors.white, fontSize: 16)),
-              style:
-                  ElevatedButton.styleFrom(backgroundColor: Color(0xff048497)),
-            ),
-            SizedBox(height: 40),
-          ],
-        ),
+                );
+        },
       ),
     );
   }

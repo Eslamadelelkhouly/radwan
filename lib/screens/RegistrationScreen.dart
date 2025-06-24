@@ -1,8 +1,12 @@
+import 'package:diagnosify_app/core/services/question_services/model/question_model.dart';
 import 'package:diagnosify_app/screens/Chat_Screen.dart';
 import 'package:diagnosify_app/screens/home_view.dart';
 import 'package:flutter/material.dart';
 
 class RegistrationScreen2 extends StatefulWidget {
+  final List<QuestionModel> questions;
+
+  const RegistrationScreen2({super.key, required this.questions});
   @override
   _RegistrationScreen2State createState() => _RegistrationScreen2State();
 }
@@ -57,12 +61,12 @@ class _RegistrationScreen2State extends State<RegistrationScreen2> {
                 'assets/IMG-20250226-WA0009-removebg-preview.png',
               ),
               Text(
-                'please answer the following questions',
+                '${widget.questions[3].name}',
                 style: TextStyle(fontSize: 16),
               ),
               SizedBox(height: 20),
               Text(
-                'What disease do you suffer from?',
+                '${widget.questions[4].name}',
                 style: TextStyle(fontSize: 16),
               ),
               TextFormField(
@@ -76,7 +80,7 @@ class _RegistrationScreen2State extends State<RegistrationScreen2> {
               ),
               SizedBox(height: 20),
               Text(
-                'When were you diagnosed with this disease?',
+                '${widget.questions[5].name}',
                 style: TextStyle(fontSize: 16),
               ),
               TextFormField(
@@ -90,7 +94,7 @@ class _RegistrationScreen2State extends State<RegistrationScreen2> {
               ),
               SizedBox(height: 20),
               Text(
-                'What medications do you take?',
+                '${widget.questions[6].name}',
                 style: TextStyle(fontSize: 16),
               ),
               TextFormField(
@@ -104,28 +108,13 @@ class _RegistrationScreen2State extends State<RegistrationScreen2> {
               ),
               SizedBox(height: 20),
               Text(
-                'What are the most common symptoms that affect you?',
+                '${widget.questions[7].name}',
                 style: TextStyle(fontSize: 16),
               ),
               TextFormField(
                 validator: (value) =>
                     value!.isEmpty ? 'Please enter your symptoms' : null,
                 controller: _symptomsController,
-                decoration: InputDecoration(
-                  hintText: 'Answer',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              SizedBox(height: 20),
-              Text(
-                'Do you have a contingency plan in case further fatigue occurs?',
-                style: TextStyle(fontSize: 16),
-              ),
-              TextFormField(
-                validator: (value) => value!.isEmpty
-                    ? 'Please enter your contingency plan'
-                    : null,
-                controller: _contingencyPlanController,
                 decoration: InputDecoration(
                   hintText: 'Answer',
                   border: OutlineInputBorder(),
